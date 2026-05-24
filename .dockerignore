@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.git/
+tests/
+*.md
+app/data/jobs.index
+app/data/jobs_meta.json

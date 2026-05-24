@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+sqlalchemy
+psycopg2-binary
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+pymupdf
+scikit-learn
+numpy
+python-multipart
+python-dotenv
+email-validator
+requests
+faiss-cpu
