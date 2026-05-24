@@ -11,44 +11,35 @@ MAX_RETRIES = 3
 RETRY_DELAY = 5
 
 
-def get_embedding(text: str) -> list[float]:
+def get_embedding(text: str) -> list[float] | None:
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {
         "inputs": text,
         "options": {"wait_for_model": True},
     }
+    try:
+        response = requests.post(
+            HF_API_URL, headers=headers, json=payload, timeout=15
+        )
+        if response.status_code == 200:
+            embedding = response.json()
+            if isinstance(embedding[0], list):
+                embedding = embedding[0]
+            return embedding
+        return None
+    except Exception:
+        return None
 
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
 
-            if response.status_code == 200:
-                embedding = response.json()
-                if isinstance(embedding[0], list):
-                    embedding = embedding[0]
-                return embedding
-
-            if response.status_code in (503, 429):
-                if attempt < MAX_RETRIES - 1:
-                    time.sleep(RETRY_DELAY)
-                    continue
-
-            raise HTTPException(
-                status_code=503,
-                detail=f"Embedding service unavailable: {response.status_code}",
-            )
-
-        except HTTPException:
-            raise
-        except requests.exceptions.Timeout:
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(RETRY_DELAY)
-                continue
-            raise HTTPException(status_code=503, detail="Embedding service timed out")
-        except Exception as e:
-            raise HTTPException(status_code=503, detail=f"Embedding service error: {str(e)}")
-
-    raise HTTPException(status_code=503, detail="Embedding service failed after retries")
+def get_document_embedding(text: str) -> list[float] | None:
+    chunks = chunk_text(text)
+    if len(chunks) == 1:
+        return get_embedding(chunks[0])
+    embeddings = [get_embedding(c) for c in chunks[:4]]
+    embeddings = [e for e in embeddings if e is not None]
+    if not embeddings:
+        return None
+    return np.mean(embeddings, axis=0).tolist()
 
 
 def chunk_text(text: str, chunk_size: int = MAX_CHARS) -> list[str]:

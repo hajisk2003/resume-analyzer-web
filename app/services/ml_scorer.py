@@ -46,6 +46,7 @@ def calculate_tfidf_score(resume_text: str, job_description: str) -> dict:
         "missing_keywords": list(jd_keywords - resume_keywords),
     }
 
-
-def calculate_final_score(tfidf_score: float, semantic_score: float) -> float:
+def calculate_final_score(tfidf_score: float, semantic_score) -> float:
+    if semantic_score is None:
+        return round(tfidf_score, 2)
     return round((tfidf_score * 0.4) + (semantic_score * 0.6), 2)

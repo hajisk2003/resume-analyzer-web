@@ -348,29 +348,25 @@ async def full_analysis(
 
     errors = []
 
-    try:
-        tfidf_result = calculate_tfidf_score(resume.resume_text, resume.job_description)
+    tfidf_result = calculate_tfidf_score(resume.resume_text, resume.job_description)
+    resume.tfidf_score = tfidf_result["tfidf_score"]
+    resume.matched_keywords = tfidf_result["matched_keywords"]
+    resume.missing_keywords = tfidf_result["missing_keywords"]
+    resume.final_score = tfidf_result["tfidf_score"]
+    db.commit()
 
+    try:
         resume_emb = resume.resume_embedding or get_document_embedding(resume.resume_text)
         jd_emb = resume.jd_embedding or get_document_embedding(resume.job_description)
-
-        resume.resume_embedding = resume_emb
-        resume.jd_embedding = jd_emb
-
-        semantic_score = round(cosine_similarity_vectors(resume_emb, jd_emb) * 100, 2)
-        final = calculate_final_score(tfidf_result["tfidf_score"], semantic_score)
-
-        resume.tfidf_score = tfidf_result["tfidf_score"]
-        resume.semantic_score = semantic_score
-        resume.final_score = final
-        resume.matched_keywords = tfidf_result["matched_keywords"]
-        resume.missing_keywords = tfidf_result["missing_keywords"]
-        db.commit()
-
-    except Exception as e:
-        resume.status = "failed"
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"Scoring failed: {str(e)}")
+        if resume_emb and jd_emb:
+            resume.resume_embedding = resume_emb
+            resume.jd_embedding = jd_emb
+            semantic_score = round(cosine_similarity_vectors(resume_emb, jd_emb) * 100, 2)
+            resume.semantic_score = semantic_score
+            resume.final_score = calculate_final_score(tfidf_result["tfidf_score"], semantic_score)
+            db.commit()
+    except Exception:
+        errors.append("Semantic scoring unavailable")
 
     if not resume.suggestions:
         try:
@@ -382,15 +378,15 @@ async def full_analysis(
                 final_score=resume.final_score,
             )
             db.commit()
-        except Exception as e:
-            errors.append(f"LLM suggestions unavailable: {str(e)}")
+        except Exception:
+            errors.append("LLM suggestions unavailable")
 
     if not resume.similar_jobs:
         try:
             resume.similar_jobs = get_similar_jobs(resume.resume_text, top_k=3)
             db.commit()
-        except Exception as e:
-            errors.append(f"Similar jobs unavailable: {str(e)}")
+        except Exception:
+            errors.append("Similar jobs unavailable")
 
     resume.status = "completed"
     resume.completed_at = datetime.now(timezone.utc)
